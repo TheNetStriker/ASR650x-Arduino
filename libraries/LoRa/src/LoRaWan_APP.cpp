@@ -2,6 +2,7 @@
 #if(LoraWan_RGB==1)
 #include "CubeCell_NeoPixel.h"
 CubeCell_NeoPixel pixels(1, RGB, NEO_GRB + NEO_KHZ800);
+bool rgbIsEnabled = false;
 #endif
 
 #if defined( REGION_EU868 )
@@ -22,6 +23,7 @@ CubeCell_NeoPixel pixels(1, RGB, NEO_GRB + NEO_KHZ800);
 
   uint8_t ifDisplayAck=0;
   uint8_t isDispayOn=0;
+  bool displayIsEnabled=false;
 #endif
 
 #ifdef CubeCell_GPS
@@ -212,20 +214,22 @@ static void McpsConfirm( McpsConfirm_t *mcpsConfirm )
 #if(LoraWan_RGB==1)
 void turnOnRGB(uint32_t color,uint32_t time)
 {
-	uint8_t red,green,blue;
-	red=(uint8_t)(color>>16);
-	green=(uint8_t)(color>>8);
-	blue=(uint8_t)color;
-	pinMode(Vext,OUTPUT);
-	digitalWrite(Vext,LOW); //SET POWER
-	delay(1);
-	pixels.begin(); // INITIALIZE RGB strip object (REQUIRED)
-	pixels.clear(); // Set all pixel colors to 'off'
-	pixels.setPixelColor(0, pixels.Color(red, green, blue));
-	pixels.show();   // Send the updated pixel colors to the hardware.
-	if(time>0)
-	{
-		delay(time);
+	if (rgbIsEnabled) {
+		uint8_t red,green,blue;
+		red=(uint8_t)(color>>16);
+		green=(uint8_t)(color>>8);
+		blue=(uint8_t)color;
+		pinMode(Vext,OUTPUT);
+		digitalWrite(Vext,LOW); //SET POWER
+		delay(1);
+		pixels.begin(); // INITIALIZE RGB strip object (REQUIRED)
+		pixels.clear(); // Set all pixel colors to 'off'
+		pixels.setPixelColor(0, pixels.Color(red, green, blue));
+		pixels.show();   // Send the updated pixel colors to the hardware.
+		if(time>0)
+		{
+			delay(time);
+		}
 	}
 }
 
@@ -667,67 +671,114 @@ void LoRaWanClass::ifskipjoin()
 #if defined(CubeCell_BoardPlus)||defined(CubeCell_GPS)
 void LoRaWanClass::displayJoining()
 {
-	display.setFont(ArialMT_Plain_16);
-	display.setTextAlignment(TEXT_ALIGN_CENTER);
-	display.clear();
-	display.drawString(58, 22, "JOINING...");
-	display.display();
+	if (displayIsEnabled) {
+		display.setFont(ArialMT_Plain_16);
+		display.setTextAlignment(TEXT_ALIGN_CENTER);
+		display.clear();
+		display.drawString(58, 22, "JOINING...");
+		display.display();
+	}
 }
 void LoRaWanClass::displayJoined()
 {
-	display.clear();
-	display.drawString(64, 22, "JOINED");
-	display.display();
-	delay(1000);
+	if (displayIsEnabled) {
+		display.clear();
+		display.drawString(64, 22, "JOINED");
+		display.display();
+		delay(1000);
+	}
 }
-void LoRaWanClass::displaySending()
+void LoRaWanClass::displaySending(const uint8_t *font, String line1, String line2, String line3, String line4)
 {
-    isDispayOn = 1;
-	digitalWrite(Vext,LOW);
-	display.init();
-	display.setFont(ArialMT_Plain_16);
-	display.setTextAlignment(TEXT_ALIGN_CENTER);
-	display.clear();
-	display.drawString(58, 22, "SENDING...");
-	display.display();
-	delay(1000);
+	if (displayIsEnabled) {
+		isDispayOn = 1;
+		digitalWrite(Vext,LOW);
+		display.init();
+		display.setFont(font);
+		display.setTextAlignment(TEXT_ALIGN_CENTER);
+		display.clear();
+		display.drawString(58, 0, "SENDING...");
+		display.drawString(58, 10, line1);
+		display.drawString(58, 22, line2);
+		display.drawString(58, 33, line3);
+		display.drawString(58, 44, line4);
+		display.display();
+		delay(1000);
+	}
 }
 void LoRaWanClass::displayAck()
 {
-    if(ifDisplayAck==0)
-    {
-    	return;
-    }
-    ifDisplayAck--;
-	display.clear();
-	display.drawString(64, 22, "ACK RECEIVED");
-	if(loraWanClass==CLASS_A)
-	{
-		display.setFont(ArialMT_Plain_10);
-		display.setTextAlignment(TEXT_ALIGN_LEFT);
-		display.drawString(28, 50, "Into deep sleep in 2S");
-	}
-	display.display();
-	if(loraWanClass==CLASS_A)
-	{
-		delay(2000);
-		isDispayOn = 0;
-		digitalWrite(Vext,HIGH);
-		display.stop();
+	if (displayIsEnabled) {
+		if(ifDisplayAck==0)
+		{
+			return;
+		}
+		ifDisplayAck--;
+		display.clear();
+		display.drawString(64, 22, "ACK RECEIVED");
+		if(loraWanClass==CLASS_A)
+		{
+			display.setFont(ArialMT_Plain_10);
+			display.setTextAlignment(TEXT_ALIGN_LEFT);
+			display.drawString(28, 50, "Into deep sleep in 2S");
+		}
+		display.display();
+		if(loraWanClass==CLASS_A)
+		{
+			delay(2000);
+			isDispayOn = 0;
+			digitalWrite(Vext,HIGH);
+			display.stop();
+		}
 	}
 }
 void LoRaWanClass::displayMcuInit()
 {
-	isDispayOn = 1;
-	digitalWrite(Vext,LOW);
-	display.init();
-	display.setFont(ArialMT_Plain_16);
-	display.setTextAlignment(TEXT_ALIGN_CENTER);
-	display.clear();
-	display.drawString(64, 11, "LORAWAN");
-	display.drawString(64, 33, "STARTING");
-	display.display();
-	delay(2000);
+	if (displayIsEnabled) {
+		isDispayOn = 1;
+		digitalWrite(Vext,LOW);
+		display.init();
+		display.setFont(ArialMT_Plain_16);
+		display.setTextAlignment(TEXT_ALIGN_CENTER);
+		display.clear();
+		display.drawString(64, 11, "LORAWAN");
+		display.drawString(64, 33, "STARTING");
+		display.display();
+		delay(2000);
+	}
+}
+void LoRaWanClass::enableRgb()
+{
+	if (!rgbIsEnabled) {
+		rgbIsEnabled = true;
+		digitalWrite(Vext, LOW);
+	}
+}
+void LoRaWanClass::disableRgb()
+{
+	if (rgbIsEnabled) {
+		rgbIsEnabled = false;
+
+		if (!displayIsEnabled)
+			digitalWrite(Vext, HIGH);
+	}
+}
+void LoRaWanClass::enableDisplay()
+{
+	if (!displayIsEnabled) {
+		displayIsEnabled = true;
+		digitalWrite(Vext, LOW);
+	}
+}
+void LoRaWanClass::disableDisplay()
+{
+	if (displayIsEnabled) {
+		displayIsEnabled = false;
+		display.stop();
+
+		if (!rgbIsEnabled)
+			digitalWrite(Vext, HIGH);
+	}
 }
 #endif
 

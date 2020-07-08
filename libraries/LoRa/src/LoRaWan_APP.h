@@ -64,9 +64,13 @@ public:
 #if defined(CubeCell_BoardPlus)||defined(CubeCell_GPS)
   void displayJoining();
   void displayJoined();
-  void displaySending();
+  void displaySending(const uint8_t *font, String line1, String line2, String line3, String line4);
   void displayAck();
   void displayMcuInit();
+  void enableRgb();
+  void disableRgb();
+  void enableDisplay();
+  void disableDisplay();
 #endif
 };
 
