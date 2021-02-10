@@ -19,6 +19,7 @@
 #include <uart_port.h>
 #include "AT_Command.h"
 #include <HardwareSerial.h>
+#include <cubecell_OLEDDisplay.h>
 
 extern uint8_t devEui[];
 extern uint8_t appEui[];
@@ -64,9 +65,9 @@ public:
 #if defined(CubeCell_BoardPlus)||defined(CubeCell_GPS)
   void displayJoining();
   void displayJoined();
-  void displaySending(const uint8_t *font, String line1, String line2, String line3, String line4);
+  void displayText(OLEDDISPLAY_ANGLE angle, const uint8_t *font, String line1, String line2, String line3, String line4, String line5);
   void displayAck();
-  void displayMcuInit();
+  void displayMcuInit(OLEDDISPLAY_ANGLE angle);
   void enableRgb();
   void disableRgb();
   void enableDisplay();

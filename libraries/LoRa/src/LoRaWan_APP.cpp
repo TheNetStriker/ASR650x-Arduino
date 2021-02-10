@@ -688,20 +688,21 @@ void LoRaWanClass::displayJoined()
 		delay(1000);
 	}
 }
-void LoRaWanClass::displaySending(const uint8_t *font, String line1, String line2, String line3, String line4)
+void LoRaWanClass::displayText(OLEDDISPLAY_ANGLE angle, const uint8_t *font, String line1, String line2, String line3, String line4, String line5)
 {
 	if (displayIsEnabled) {
 		isDispayOn = 1;
 		digitalWrite(Vext,LOW);
 		display.init();
+		display.screenRotate(angle);
 		display.setFont(font);
 		display.setTextAlignment(TEXT_ALIGN_CENTER);
 		display.clear();
-		display.drawString(58, 0, "SENDING...");
-		display.drawString(58, 10, line1);
-		display.drawString(58, 22, line2);
-		display.drawString(58, 33, line3);
-		display.drawString(58, 44, line4);
+		display.drawString(58, 0, line1);
+		display.drawString(58, 10, line2);
+		display.drawString(58, 22, line3);
+		display.drawString(58, 33, line4);
+		display.drawString(58, 44, line5);
 		display.display();
 		delay(1000);
 	}
@@ -732,12 +733,13 @@ void LoRaWanClass::displayAck()
 		}
 	}
 }
-void LoRaWanClass::displayMcuInit()
+void LoRaWanClass::displayMcuInit(OLEDDISPLAY_ANGLE angle)
 {
 	if (displayIsEnabled) {
 		isDispayOn = 1;
 		digitalWrite(Vext,LOW);
 		display.init();
+		display.screenRotate(angle);
 		display.setFont(ArialMT_Plain_16);
 		display.setTextAlignment(TEXT_ALIGN_CENTER);
 		display.clear();
