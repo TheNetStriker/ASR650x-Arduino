@@ -3,23 +3,28 @@
 
 #include <stdio.h>
 #include "utilities.h"
-#include "board.h"
-#include "gpio.h"
 #include "LoRaMac.h"
 #include "Commissioning.h"
-#include "hw.h"
 #include "Region.h"
+#include "sx126x.h"
+#include "HardwareSerial.h"
+#include "Arduino.h"
+#include "AT_Command.h"
+#if defined(__ASR6501__)
+#include "board.h"
+#include "gpio.h"
+#include "hw.h"
 #include "low_power.h"
 #include "spi-board.h"
 #include "rtc-board.h"
 #include "asr_timer.h"
-#include "sx126x.h"
 #include "board-config.h"
 #include "hw_conf.h"
 #include <uart_port.h>
 #include "AT_Command.h"
 #include <HardwareSerial.h>
 #include <cubecell_OLEDDisplay.h>
+#endif
 
 extern uint8_t devEui[];
 extern uint8_t appEui[];
@@ -44,7 +49,6 @@ extern bool keepNet;
 extern bool IsLoRaMacNetworkJoined;
 extern uint16_t userChannelsMask[6];
 
-
 /*!
  * Defines a random delay for application data transmission duty cycle. 1s,
  * value in [ms].
@@ -60,7 +64,9 @@ public:
   void send();
   void cycle(uint32_t dutyCycle);
   void sleep();
+  void setDataRateForNoADR(int8_t dataRate);
   void ifskipjoin();
+  void generateDeveuiByChipID();
 
 #if defined(CubeCell_BoardPlus)||defined(CubeCell_GPS)
   void displayJoining();
@@ -83,6 +89,7 @@ extern "C" uint16_t getBatteryVoltage(void);
 extern "C" bool checkUserAt(char * cmd, char * content);
 extern "C" void downLinkDataHandle(McpsIndication_t *mcpsIndication);
 extern "C" void lwan_dev_params_update( void );
+extern "C" void dev_time_updated( void );
 
 
 extern LoRaWanClass LoRaWAN;

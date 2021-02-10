@@ -1,43 +1,7 @@
 #include "Arduino.h"
 #include "GPS_Air530.h"
 
-HardwareSerial GPSSerial(UART_NUM_1);
-
-double gps_x_pi = 3.14159265358979324 * 3000.0 / 180.0;
-double gps_pi = 3.14159265358979324;
-double gps_a = 6378245.0;
-double gps_ee = 0.00669342162296594323;
-
-int str_chop(char *s, int buff_size, char separator, uint8_t *idx_ary, int max_idx);
-double transformLon(double x, double y);
-double transformLat(double x, double y);
-double outOfChina(double lat, double lon);
-
-
-double transformLon(double x, double y) {
-	double ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * sqrt(abs(x));
-	ret += (20.0 * sin(6.0 * x * gps_pi) + 20.0 * sin(2.0 * x * gps_pi)) * 2.0 / 3.0;
-	ret += (20.0 * sin(x * gps_pi) + 40.0 * sin(x / 3.0 * gps_pi)) * 2.0 / 3.0;
-	ret += (150.0 * sin(x / 12.0 * gps_pi) + 300.0 * sin(x / 30.0 * gps_pi)) * 2.0 / 3.0;
-	return ret;
-};
-double transformLat(double x, double y) {
-	double ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * sqrt(abs(x));
-	ret += (20.0 * sin(6.0 * x * gps_pi) + 20.0 * sin(2.0 * x * gps_pi)) * 2.0 / 3.0;
-	ret += (20.0 * sin(y * gps_pi) + 40.0 * sin(y / 3.0 * gps_pi)) * 2.0 / 3.0;
-	ret += (160.0 * sin(y / 12.0 * gps_pi) + 320 * sin(y * gps_pi / 30.0)) * 2.0 / 3.0;
-	return ret;
-}
-
-double outOfChina(double lat, double lon) {
-	if (lon < 72.004 || lon > 137.8347)
-		return true;
-	if (lat < 0.8293 || lat > 55.8271)
-		return true;
-	return false;
-}
-
-String calchecksum(String cmd)
+static String calchecksum(String cmd)
 {
 	uint8_t checksum=cmd[1];
 	char temp[5];
@@ -55,12 +19,60 @@ Air530Class::Air530Class(int8_t powerCtl)
 	:_powerCtl(powerCtl) 
 	{}
 
-void Air530Class::begin()
+void Air530Class::begin(uint32_t baud)
 {
 	pinMode(_powerCtl,OUTPUT);
 	digitalWrite(_powerCtl, LOW);
-	GPSSerial.begin(9600);
-	delay(1000);
+
+	int i = 0;
+	//String cmd="$PGKC147,"+(String)baud;
+	
+	String cmd="$PGKC149,0,"+(String)baud;
+
+	cmd = calchecksum(cmd);
+	
+	GPSSerial.begin(bauds[i]);
+	String temp = "";
+
+	Serial.println("Current GPS baudrate detecting...");
+	while(getNMEA() == "0" )
+	{
+		i++;
+		if( i== bauds_array )
+		{
+			i=0;
+		}
+		//Serial.println(bauds[i]);
+		GPSSerial.updateBaudRate(bauds[i]);
+		delay(50);
+		GPSSerial.flush();
+		temp = getNMEA();
+	}
+	Serial.print("GPS baudrate detected:");
+	Serial.println(bauds[i]);
+
+	sendcmd(cmd);
+	GPSSerial.updateBaudRate(baud);
+	delay(50);
+	GPSSerial.flush();
+
+	Serial.println("GPS baudrate updating... ");
+	
+	while(getNMEA() =="0")
+	{
+		GPSSerial.updateBaudRate(bauds[i]);
+		delay(50);
+		sendcmd(cmd);
+		delay(50);
+		GPSSerial.updateBaudRate(baud);
+		delay(50);
+		GPSSerial.flush();
+	}
+
+	Serial.print("GPS baudrate updated to ");
+	Serial.println(baud);
+
+	_baud = baud;
 }
 
 
@@ -70,17 +82,21 @@ void Air530Class::setmode(GPSMODE mode)
 	switch(mode)
 	{
 		case MODE_GPS:
-			cmd += "$PGKC115,1,0,0,0*2B\r\n";
+			cmd += "$PGKC115,1,0,0,0";
 			break;
 		case MODE_GPS_BEIDOU:
-			cmd += "$PGKC115,1,0,1,0*2A\r\n";
+			cmd += "$PGKC115,1,0,1,0";
 			break;
 		case MODE_GPS_GLONASS:
-			cmd += "$PGKC115,1,1,0,0*2A\r\n";
+			cmd += "$PGKC115,1,1,0,0";
+			break;
+		case MODE_BEIDOU:
+			cmd += "$PGKC115,0,0,1,0";
 			break;
 		default:
 			break;
 	}
+	cmd = calchecksum(cmd);
 	sendcmd(cmd);
 }
 
@@ -176,7 +192,7 @@ void Air530Class::sendcmd(String cmd)
 
 	while(GPSSerial.available())//wait for gps serial idel
 	{
-		GPSSerial.readStringUntil('\n');
+		GPSSerial.readStringUntil('\r');
 	}
 	GPSSerial.print(cmd);
 }
@@ -185,6 +201,8 @@ String Air530Class::getNMEA()
 {
 	uint32_t starttime = millis();
 	String nmea = "";
+	char buff[128]; 
+	int index = 0;
 	while(millis() - starttime <1000)
 	{
 		if(GPSSerial.available())
@@ -193,7 +211,12 @@ String Air530Class::getNMEA()
 			if(c=='$')
 			{
 				nmea += c;
-				nmea += GPSSerial.readStringUntil('\n');
+				index = GPSSerial.readBytesUntil('\r',buff,127);
+				buff[index]=0;
+				if(buff[index-3]!='*')
+					return "0";
+
+				nmea += (String)buff;
 				return nmea;
 			}
 		}
@@ -212,7 +235,7 @@ String Air530Class::getRMC()
 			char c = GPSSerial.read();
 			if(c=='$')
 			{
-				nmea = GPSSerial.readStringUntil('\n');
+				nmea = GPSSerial.readStringUntil('\r');
 				if(nmea[2] == 'R' && nmea[3] == 'M' && nmea[4] == 'C')
 				{
 					nmea = c + nmea;
@@ -236,7 +259,7 @@ String Air530Class::getGGA()
 			char c = GPSSerial.read();
 			if(c=='$')
 			{
-				nmea = GPSSerial.readStringUntil('\n');
+				nmea = GPSSerial.readStringUntil('\r');
 				if(nmea[2] == 'G' && nmea[3] == 'G' && nmea[4] == 'A')
 				{
 					nmea = c + nmea;
@@ -259,7 +282,7 @@ String Air530Class::getVTG()
 			char c = GPSSerial.read();
 			if(c=='$')
 			{
-				nmea = GPSSerial.readStringUntil('\n');
+				nmea = GPSSerial.readStringUntil('\r');
 				if(nmea[2] == 'V' && nmea[3] == 'T' && nmea[4] == 'G')
 				{
 					nmea = c + nmea;
@@ -282,7 +305,7 @@ String Air530Class::getGSA()
 			char c = GPSSerial.read();
 			if(c=='$')
 			{
-				nmea = GPSSerial.readStringUntil('\n');
+				nmea = GPSSerial.readStringUntil('\r');
 				if(nmea[2] == 'G' && nmea[3] == 'S' && nmea[4] == 'A')
 				{
 					nmea = c + nmea;
@@ -306,7 +329,7 @@ String Air530Class::getGSV()
 			char c = GPSSerial.read();
 			if(c=='$')
 			{
-				nmea = GPSSerial.readStringUntil('\n');
+				nmea = GPSSerial.readStringUntil('\r');
 				if(nmea[2] == 'G' && nmea[3] == 'S' && nmea[4] == 'V')
 				{
 					nmea = c + nmea;
@@ -329,7 +352,7 @@ String Air530Class::getGLL()
 			char c = GPSSerial.read();
 			if(c=='$')
 			{
-				nmea = GPSSerial.readStringUntil('\n');
+				nmea = GPSSerial.readStringUntil('\r');
 				if(nmea[2] == 'G' && nmea[3] == 'L' && nmea[4] == 'L')
 				{
 					nmea = c + nmea;
@@ -388,37 +411,6 @@ gps_status_t Air530Class::WGSToBD(gps_status_t status)
 	return status;
 }
 */
-
-int str_chop(char *s, int buff_size, char separator, uint8_t *idx_ary, int max_idx) {
-    int i = 0; /* index in the string */
-    int j = 0; /* index in the result array */
-
-    if ((s == NULL) || (buff_size < 0) || (separator == 0) || (idx_ary == NULL) || (max_idx < 0)) {
-        /* unsafe to do anything */
-        return -1;
-    }
-    if ((buff_size == 0) || (max_idx == 0)) {
-        /* nothing to do */
-        return 0;
-    }
-    s[buff_size - 1] = 0; /* add string terminator at the end of the buffer, just to be sure */
-    idx_ary[j] = 0;
-    j += 1;
-    /* loop until string terminator is reached */
-    while (s[i] != 0) {
-        if (s[i] == separator) {
-            s[i] = 0; /* replace separator by string terminator */
-            if (j >= max_idx) { /* no more room in the index array */
-                return j;
-            }
-            idx_ary[j] = i+1; /* next token start after replaced separator */
-            ++j;
-        }
-        ++i;
-    }
-    return j;
-}
-
 
 //Air530Class GPS(GPIO14);
 Air530Class Air530(GPIO14);

@@ -674,8 +674,7 @@ void RadioSetRxConfig( RadioModems_t modem, uint32_t bandwidth,
             SX126x.ModulationParams.Params.LoRa.Bandwidth = Bandwidths[bandwidth];
             SX126x.ModulationParams.Params.LoRa.CodingRate = ( RadioLoRaCodingRates_t )coderate;
 
-            if( ( ( bandwidth == 0 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
-            ( ( bandwidth == 1 ) && ( datarate == 12 ) ) || (RadioSymbTime(Bandwidths[bandwidth], coderate) >= 16.38) )
+            if( RadioSymbTime(Bandwidths[bandwidth], datarate) >= 16.38 )
             {
                 SX126x.ModulationParams.Params.LoRa.LowDatarateOptimize = 0x01;
             }
@@ -768,8 +767,7 @@ void RadioSetTxConfig( RadioModems_t modem, int8_t power, uint32_t fdev,
             SX126x.ModulationParams.Params.LoRa.Bandwidth =  Bandwidths[bandwidth];
             SX126x.ModulationParams.Params.LoRa.CodingRate= ( RadioLoRaCodingRates_t )coderate;
 
-            if( ( ( bandwidth == 0 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
-            ( ( bandwidth == 1 ) && ( datarate == 12 ) ) || (RadioSymbTime(Bandwidths[bandwidth], coderate) >= 16.38) )
+            if( RadioSymbTime(Bandwidths[bandwidth], datarate) >= 16.38 )
             {
                 SX126x.ModulationParams.Params.LoRa.LowDatarateOptimize = 0x01;
             }
@@ -1120,14 +1118,15 @@ void RadioOnCadTimeoutIrq( void )
         RadioEvents->CadDone( 0 );
     }
 }
-
+extern uint8 UART_1_initVar;
 extern void enableUart(void);
-extern uint8_t   dio1_ClearInterrupt(void);
 void RadioOnDioIrq( void )
 {
-    IrqFired = true;
-    //dio1_ClearInterrupt();
-    //RadioIrqProcess();
+	pinMode(P4_1,INPUT);
+	if(UART_1_initVar)
+		pinMode(P3_1,OUTPUT_PULLUP);
+	IrqFired = true;
+	//RadioIrqProcess();
 }
 
 void RadioIrqProcess( void )

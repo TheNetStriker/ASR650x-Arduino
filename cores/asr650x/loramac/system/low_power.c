@@ -108,6 +108,10 @@ uint32_t LowPower_GetState( void )
  * @param  None
  * @retval None
  */
+extern uint32_t systime;
+extern void systemTimer();
+extern uint8 UART_1_initVar;
+
 void lowPowerHandler( void )
 {
     CPSR_ALLOC();
@@ -115,11 +119,17 @@ void lowPowerHandler( void )
     if (LowPower_State == 0 && wakeByUart == false) {
         DBG_PRINTF_CRITICAL("dz\n\r");
         pinMode(P4_1,ANALOG);// SPI0  MISO;
+        if(UART_1_initVar)
+            pinMode(P3_1,ANALOG);
         aos_lrwan_chg_mode.enter_stop_mode();
         /* mcu dependent. to be implemented by user*/
         aos_lrwan_chg_mode.exit_stop_mode();
         aos_lrwan_time_itf.set_uc_wakeup_time();
+        CySysTickSetCallback(4,systemTimer);
+        systime = (uint32_t)TimerGetCurrentTime();
         pinMode(P4_1,INPUT);
+        if(UART_1_initVar)
+            pinMode(P3_1,OUTPUT_PULLUP);
     } else {
         //DBG_PRINTF_CRITICAL("z\n\r");
         aos_lrwan_chg_mode.enter_sleep_mode();

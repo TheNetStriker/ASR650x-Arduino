@@ -56,6 +56,8 @@
 #define  bitClear(value, bit)   ((value) &= ~(1UL << (bit)))
 #define  bit(b)   (1 << (b))
 #define  _BV(b)   (1UL << (b))
+#define nullptr NULL
+#define yield()
 
 //#ifdef __cplusplus
 //#include <algorithm>
@@ -77,6 +79,7 @@
 #define _max(a,b) ((a)>(b)?(a):(b))
 #define noInterrupts() CyGlobalIntDisable
 #define interrupts()   CyGlobalIntEnable
+#define digitalPinToInterrupt(p) ( p )
 
 #define clockCyclesPerMicrosecond() ( 48L ) // clock cycle 48 MHz
 #define clockCyclesToMicroseconds(a) ( (a) / clockCyclesPerMicrosecond() )
@@ -108,12 +111,10 @@ uint16_t makeWord(byte h, byte l);
 #define word(...) makeWord(__VA_ARGS__)
 
 uint32_t pulseIn(uint8_t pin_name,uint8_t mode,uint32_t timeout = 1000000);
+uint8_t shiftIn(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder);
+void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val);
 
 long random(long howbig);
-
-// Include Atmel headers
-
-void yield( void ) ;
 
 /* system functions */
 int main( void );

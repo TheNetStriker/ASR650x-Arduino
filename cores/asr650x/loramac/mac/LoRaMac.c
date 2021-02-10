@@ -25,18 +25,20 @@ Maintainer: Miguel Luis ( Semtech ), Gregory Cristian ( Semtech ) and Daniel Jae
 #include <string.h>
 #include <stdint.h>
 #include "radio.h"
-#include "timeServer.h"
 #include "LoRaMac.h"
 #include "region/Region.h"
 #include "LoRaMacClassB.h"
 #include "LoRaMacCrypto.h"
-#ifdef CONFIG_LWAN
-#include "lwan_config.h"    
-#endif    
 #include "debug.h"
 #include "LoRaMacTest.h"
 #include "LoRaMacConfirmQueue.h"
+#include "ASR_Arduino.h"
 #include "AT_Command.h"
+#if defined(__ASR6501__)
+#include "timeServer.h"
+#else
+#include "timer.h"
+#endif
 
 #ifdef CONFIG_LORA_VERIFY
 extern bool g_lora_debug;
@@ -60,7 +62,7 @@ TimerTime_t mcps_start_time;
 /*!
  * LoRaMac region.
  */
-static LoRaMacRegion_t LoRaMacRegion;
+LoRaMacRegion_t LoRaMacRegion;
 
 /*!
  * LoRaMac duty cycle for the back-off procedure during the first hour.
@@ -297,19 +299,6 @@ static TimerTime_t LoRaMacInitializationTime = 0;
 
 static TimerSysTime_t LastTxSysTime = { 0 };
 
-/*!
- * LoRaMac internal states
- */
-enum eLoRaMacState {
-    LORAMAC_IDLE          = 0x00000000,
-    LORAMAC_TX_RUNNING    = 0x00000001,
-    LORAMAC_RX            = 0x00000002,
-    LORAMAC_ACK_REQ       = 0x00000004,
-    LORAMAC_ACK_RETRY     = 0x00000008,
-    LORAMAC_TX_DELAYED    = 0x00000010,
-    LORAMAC_TX_CONFIG     = 0x00000020,
-    LORAMAC_RX_ABORT      = 0x00000040,
-};
 
 /*!
  * LoRaMac internal state
@@ -1220,6 +1209,14 @@ static void OnRadioTxTimeout( void )
 #endif
     DIO_PRINTF("Event : Tx Timeout\r\n");
 
+    Radio.Init( &RadioEvents );
+    // Random seed initialization
+    srand1( Radio.Random( ) );
+
+    PublicNetwork = true;
+    Radio.SetPublicNetwork(true);
+    Radio.Sleep( );
+
     if( LoRaMacDeviceClass != CLASS_C )
     {
         Radio.Sleep( );
@@ -1891,7 +1888,8 @@ static bool ValidatePayloadLength( uint8_t lenN, int8_t datarate, uint8_t fOptsL
     payloadSize = ( lenN + fOptsLen );
 
     // Validation of the application payload size
-    if ( ((( payloadSize > maxN ) && (fOptsLen != 0) && (fOptsLen <= maxN)) || ( payloadSize <= maxN )) && ( payloadSize <= LORAMAC_PHY_MAXPAYLOAD ) ) {
+    //if ( ((( payloadSize > maxN ) && (fOptsLen != 0) && (fOptsLen <= maxN)) || ( payloadSize <= maxN )) && ( payloadSize <= LORAMAC_PHY_MAXPAYLOAD ) ) {
+    if ( ((( payloadSize > maxN ) && (fOptsLen != 0) && (lenN <= maxN) && (fOptsLen <= maxN)) || ( payloadSize <= maxN )) && ( payloadSize <= LORAMAC_PHY_MAXPAYLOAD ) ) {
         return true;
     }
     return false;
@@ -2497,10 +2495,13 @@ static LoRaMacStatus_t ScheduleTx( void )
     while ( RegionNextChannel( LoRaMacRegion, &nextChan, &Channel, &dutyCycleTimeOff, &AggregatedTimeOff ) == false ) {
         // Set the default datarate
         //LoRaMacParams.ChannelsDatarate = LoRaMacParamsDefaults.ChannelsDatarate;
-        LoRaMacParams.ChannelsDatarate --;
-        if(LoRaMacParams.ChannelsDatarate == minDatarate)
+        if(LoRaMacParams.ChannelsDatarate == minDatarate)
         {
             LoRaMacParams.ChannelsDatarate = maxDatarate;
+        }
+        else
+        {
+            LoRaMacParams.ChannelsDatarate --;
         }
         // Update datarate in the function parameters
         nextChan.Datarate = LoRaMacParams.ChannelsDatarate;
@@ -3089,24 +3090,51 @@ LoRaMacStatus_t LoRaMacInitialization( LoRaMacPrimitives_t *primitives, LoRaMacC
     return LORAMAC_STATUS_OK;
 }
 
+extern int8_t defaultDrForNoAdr;
+extern int8_t currentDrForNoAdr;
+
 LoRaMacStatus_t LoRaMacQueryTxPossible( uint8_t size, LoRaMacTxInfo_t *txInfo )
 {
     AdrNextParams_t adrNext;
     GetPhyParams_t getPhy;
     PhyParam_t phyParam;
-    int8_t datarate = LoRaMacParamsDefaults.ChannelsDatarate;
+    int8_t datarate;
     int8_t txPower = LoRaMacParamsDefaults.ChannelsTxPower;
+    
+    // Get the minimum possible datarate
+    getPhy.Attribute = PHY_MIN_TX_DR;
+    phyParam = RegionGetPhyParam( LoRaMacRegion, &getPhy );
+    defaultDrForNoAdr = MAX( defaultDrForNoAdr, phyParam.Value );
+
+    // Get the mac possible datarate
+    getPhy.Attribute = PHY_MAX_TX_DR;
+    phyParam = RegionGetPhyParam( LoRaMacRegion, &getPhy );
+    int8_t maxDatarate = phyParam.Value;
+    defaultDrForNoAdr = MIN( defaultDrForNoAdr, phyParam.Value );
+
+    currentDrForNoAdr = defaultDrForNoAdr;
+    if(AdrCtrlOn)
+    {
+        datarate = LoRaMacParams.ChannelsDatarate;
+    }
+    else
+    {
+        datarate=currentDrForNoAdr;
+    }
     uint8_t fOptLen = MacCommandsBufferIndex + MacCommandsBufferToRepeatIndex;
 
     if ( txInfo == NULL ) {
         return LORAMAC_STATUS_PARAMETER_INVALID;
     }
 
+
+
     // Setup ADR request
     adrNext.UpdateChanMask = false;
     adrNext.AdrEnabled = AdrCtrlOn;
     adrNext.AdrAckCounter = AdrAckCounter;
-    adrNext.Datarate = LoRaMacParams.ChannelsDatarate;
+    //adrNext.Datarate = LoRaMacParams.ChannelsDatarate;
+    adrNext.Datarate = datarate;
     adrNext.TxPower = LoRaMacParams.ChannelsTxPower;
     adrNext.UplinkDwellTime = LoRaMacParams.UplinkDwellTime;
 
@@ -3114,6 +3142,7 @@ LoRaMacStatus_t LoRaMacQueryTxPossible( uint8_t size, LoRaMacTxInfo_t *txInfo )
     // apply the datarate, the tx power and the ADR ack counter.
     RegionAdrNext( LoRaMacRegion, &adrNext, &datarate, &txPower, &AdrAckCounter );
 
+/*
     // Setup PHY request
     getPhy.UplinkDwellTime = LoRaMacParams.UplinkDwellTime;
     getPhy.Datarate = datarate;
@@ -3137,10 +3166,34 @@ LoRaMacStatus_t LoRaMacQueryTxPossible( uint8_t size, LoRaMacTxInfo_t *txInfo )
         MacCommandsBufferIndex = 0;
         MacCommandsBufferToRepeatIndex = 0;
     }
-
+*/
     // Verify if the fOpts and the payload fit into the maximum payload
-    if ( ValidatePayloadLength( size, datarate, fOptLen ) == false ) {
-        return LORAMAC_STATUS_LENGTH_ERROR;
+    while ( ValidatePayloadLength( size, datarate, fOptLen ) == false ) {
+		getPhy.UplinkDwellTime = LoRaMacParams.UplinkDwellTime;
+		getPhy.Datarate = datarate;
+		getPhy.Attribute = PHY_MAX_PAYLOAD;
+		
+		// Change request in case repeater is supported
+		if( LoRaMacParams.RepeaterSupport == true ) {
+			getPhy.Attribute = PHY_MAX_PAYLOAD_REPEATER;
+		}
+		phyParam = RegionGetPhyParam( LoRaMacRegion, &getPhy );
+		uint8_t maxN = phyParam.Value;
+        if(AdrCtrlOn)
+        {
+            if(LoRaMacParams.ChannelsDatarate >= maxDatarate)
+                return LORAMAC_STATUS_LENGTH_ERROR;
+            LoRaMacParams.ChannelsDatarate ++;
+            datarate=LoRaMacParams.ChannelsDatarate;
+        }
+        else
+        {
+            if(currentDrForNoAdr >= maxDatarate)
+                return LORAMAC_STATUS_LENGTH_ERROR;
+            currentDrForNoAdr++;
+            datarate=currentDrForNoAdr;
+        }
+		printf("Payload length(%d) and fOptLen(%d) exceed max size(%d for current datarate DR %d), set datarate to Dr %d\r\n",size,fOptLen,maxN,datarate-1,datarate);
     }
     return LORAMAC_STATUS_OK;
 }
@@ -3945,6 +3998,14 @@ LoRaMacStatus_t LoRaMacMcpsRequest( McpsReq_t *mcpsRequest )
     // Apply the minimum possible datarate.
     // Some regions have limitations for the minimum datarate.
     datarate = MAX( datarate, phyParam.Value );
+
+    // Get the mac possible datarate
+    getPhy.Attribute = PHY_MAX_TX_DR;
+    getPhy.UplinkDwellTime = LoRaMacParams.UplinkDwellTime;
+    phyParam = RegionGetPhyParam( LoRaMacRegion, &getPhy );
+    // Apply the max possible datarate.
+    // Some regions have limitations for the max datarate.
+    datarate = MIN( datarate, phyParam.Value );
 
     if ( readyToSend == true ) {
         if ( AdrCtrlOn == false ) {

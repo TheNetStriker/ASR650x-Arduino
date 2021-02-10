@@ -100,7 +100,6 @@ void accelWakeup()
 }
 
 void setup() {
-  boardInitMcu();
   Serial.begin(115200);
 #if(AT_SUPPORT)
   enableAt();
@@ -125,6 +124,9 @@ void loop()
   {
     case DEVICE_STATE_INIT:
     {
+#if(LORAWAN_DEVEUI_AUTO)
+      LoRaWAN.generateDeveuiByChipID();
+#endif
 #if(AT_SUPPORT)
       getDevParam();
 #endif

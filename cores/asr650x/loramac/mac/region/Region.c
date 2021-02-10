@@ -24,11 +24,12 @@ Maintainer: Miguel Luis ( Semtech ), Gregory Cristian ( Semtech ) and Daniel Jae
 #include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
-
-//#include "timer.h"
-#include "timeServer.h"
 #include "LoRaMac.h"
-
+#if defined(__ASR6501__)
+#include "timeServer.h"
+#else
+#include "timer.h"
+#endif
 
 
 // Regional includes
@@ -37,7 +38,7 @@ Maintainer: Miguel Luis ( Semtech ), Gregory Cristian ( Semtech ) and Daniel Jae
 
 
 // Setup regions
-#ifdef REGION_AS923
+#if defined (REGION_AS923) || defined( REGION_AS923_AS1) || defined( REGION_AS923_AS2)
 #include "RegionAS923.h"
 #define AS923_CASE                                 case LORAMAC_REGION_AS923:
 #define AS923_IS_ACTIVE( )                         AS923_CASE { return true; }

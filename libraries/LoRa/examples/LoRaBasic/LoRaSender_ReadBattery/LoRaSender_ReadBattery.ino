@@ -10,7 +10,7 @@
  * 3. This example is for CubeCell hardware basic test.
  *
  * HelTec AutoMation, Chengdu, China
- * 鎴愰兘鎯犲埄鐗硅嚜鍔ㄥ寲绉戞妧鏈夐檺鍏徃
+ * 成都惠利特自动化科技有限公司
  * https://heltec.org
  *
  * this project also realess in GitHub:
@@ -88,7 +88,7 @@ void setup() {
                                    LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
                                    true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
 
-    state=TX;
+    state=ReadVoltage;
 }
 
 
@@ -121,25 +121,32 @@ void loop()
       pinMode(VBAT_ADC_CTL,OUTPUT);
       digitalWrite(VBAT_ADC_CTL,LOW);
       voltage=analogRead(ADC)*2;
-      digitalWrite(VBAT_ADC_CTL,HIGH);
+
+      /*
+       * Board, BoardPlus, Capsule, GPS and HalfAA variants
+       * have external 10K VDD pullup resistor
+       * connected to GPIO7 (USER_KEY / VBAT_ADC_CTL) pin
+       */
+      pinMode(VBAT_ADC_CTL, INPUT);
+
       state = TX;
       break;
     }
      default:
           break;
   }
+  Radio.IrqProcess();
 }
 
 void OnTxDone( void )
 {
   Serial.print("TX done!");
   turnOnRGB(0,0);
-  state=TX;
 }
 
 void OnTxTimeout( void )
 {
     Radio.Sleep( );
     Serial.print("TX Timeout......");
-    state=TX;
+    state=ReadVoltage;
 }

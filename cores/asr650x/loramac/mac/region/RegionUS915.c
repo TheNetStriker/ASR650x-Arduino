@@ -27,8 +27,12 @@ Maintainer: Miguel Luis ( Semtech ), Gregory Cristian ( Semtech ) and Daniel Jae
 #include <math.h>
 
 #include "radio.h"
-//#include "timer.h"
+#if defined(__ASR6501__)
 #include "timeServer.h"
+#else
+#include "timer.h"
+#endif
+
 #include "LoRaMac.h"
 
 #include "utilities.h"
@@ -169,6 +173,11 @@ PhyParam_t RegionUS915GetPhyParam( GetPhyParams_t* getPhy )
         case PHY_MIN_TX_DR:
         {
             phyParam.Value = US915_TX_MIN_DATARATE;
+            break;
+        }
+        case PHY_MAX_TX_DR:
+        {
+            phyParam.Value = US915_TX_MAX_DATARATE;
             break;
         }
         case PHY_DEF_TX_DR:
@@ -601,7 +610,7 @@ bool RegionUS915TxConfig( TxConfigParams_t* txConfig, int8_t* txPower, TimerTime
     Radio.SetChannel( Channels[txConfig->Channel].Frequency );
 
     Radio.SetMaxPayloadLength( MODEM_LORA, txConfig->PktLen );
-    Radio.SetTxConfig( MODEM_LORA, phyTxPower, 0, bandwidth, phyDr, 1, 14, false, true, 0, 0, false, 3e3 );
+    Radio.SetTxConfig( MODEM_LORA, phyTxPower, 0, bandwidth, phyDr, 1, 16, false, true, 0, 0, false, 3e3 );
     FREQ_PRINTF("TX on freq %u Hz at DR %d power %d dBm\r\n", (unsigned int)Channels[txConfig->Channel].Frequency, txConfig->Datarate,phyTxPower);
 
     *txTimeOnAir = Radio.TimeOnAir( MODEM_LORA,  txConfig->PktLen );

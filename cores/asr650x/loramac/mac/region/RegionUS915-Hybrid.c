@@ -27,8 +27,12 @@ Maintainer: Miguel Luis ( Semtech ), Gregory Cristian ( Semtech ) and Daniel Jae
 #include <math.h>
 
 #include "radio.h"
-//#include "timer.h"
+#if defined(__ASR6501__)
 #include "timeServer.h"
+#else
+#include "timer.h"
+#endif
+
 #include "LoRaMac.h"
 
 #include "utilities.h"
@@ -258,6 +262,11 @@ PhyParam_t RegionUS915HybridGetPhyParam( GetPhyParams_t* getPhy )
         case PHY_MIN_TX_DR:
         {
             phyParam.Value = US915_HYBRID_TX_MIN_DATARATE;
+            break;
+        }
+        case PHY_MAX_TX_DR:
+        {
+            phyParam.Value = US915_HYBRID_TX_MAX_DATARATE;
             break;
         }
         case PHY_DEF_TX_DR:

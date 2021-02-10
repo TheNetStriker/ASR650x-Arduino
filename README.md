@@ -16,6 +16,8 @@ CubeCell series LoRaWAN-Node stack is migration form [LoRaMac-node](https://gith
 
 For more details, please refer to **[CubeCell Documents Page](https://heltec-automation-docs.readthedocs.io/en/latest/cubecell/index.html).**
 
+We have made an e-ink adaptation for cubecell, currently only supports 2.9 inch ink screen, we will update it later:https://github.com/HelTecAutomation/e-ink/blob/master/examples/DEPG0290BxS75AFxX_BW/DEPG0290BxS75AFxX_BW.ino
+
 &nbsp;
 
 ## Instructions
@@ -80,15 +82,13 @@ Also you can talk in our forum: [http://community.heltec.cn/](http://community.h
 |   MCU   |                       Relative boards                        |
 | :-----: | :----------------------------------------------------------: |
 | ASR6501 | [CubeCell-Board](https://heltec.org/project/htcc-ab01/), [CubeCell-Module](https://heltec.org/project/htcc-am01/), [CubeCell-Cuapsule](https://heltec.org/project/htcc-ac01/) |
-| ASR6502 |                         Coming soon                          |
-
-
+| ASR6502 | [CubeCell-Board Plus](https://heltec.org/project/htcc-ab02/), [CubeCell GPS-6502](https://heltec.org/project/htcc-ab02s/), [CubeCell 1/2AA Node](https://heltec.org/project/htcc-ab02a/), [CubeCell-Module Plus](https://heltec.org/project/htcc-am02/), [CubeCell-Capsule Solar Sensor](https://heltec.org/project/htcc-ac02/)  |
 
 ## 安装指南
 
 首先，确保你的电脑上已经安装了最新的Arduino IDE。如果没有安装，请参考这篇文档：[https://docs.heltec.cn/#/zh_CN/user_manual/how_to_install_git_and_arduino](https://docs.heltec.cn/#/zh_CN/user_manual/how_to_install_git_and_arduino)
-- **通过Arduino IDE的库管理器安装**
-  - [安装基于ASR650x芯片的开发环境](https://docs.heltec.cn/#/en/user_manual/how_to_install_ASR650x_Arduino)
+- **通过Arduino IDE的开发板理器安装**
+  - [通过开发板管理器安装ASR650x芯片的Arduino开发环境](https://heltec-automation.readthedocs.io/zh_CN/latest/cubecell/quick_start.html#arduino-board-manager)
 - **通过Git从源码进行安装**
   - [Windows操作系统 -- 安装方法](InstallGuide/windows.md)
   - [MacOS操作系统 -- 安装方法](InstallGuide/mac.md)

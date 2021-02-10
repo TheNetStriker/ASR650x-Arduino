@@ -59,7 +59,12 @@ static void OnLoraRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t 
 	Radio.Sleep( );
 	if(PrintMode==false)
 	{
-		Serial.printf("Received String:%s\r\n",payload);
+		Serial.print("Received String:");
+		for(int i=0;i<size;i++)
+		{
+			Serial.printf("%c",*payload++);
+		}
+		Serial.println();
 	}
 	else
 	{
@@ -111,7 +116,11 @@ void LoRaClass::receive()
 
 void LoRaClass::lowpower()
 {
+#if defined(__ASR6601__)
+	TimerLowPowerHandler( );
+#else
 	lowPowerHandler( );
+#endif
 	// Process Radio IRQ
 	Radio.IrqProcess( );
 }

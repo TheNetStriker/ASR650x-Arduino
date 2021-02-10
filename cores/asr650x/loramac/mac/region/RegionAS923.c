@@ -27,8 +27,12 @@ Maintainer: Miguel Luis ( Semtech ), Gregory Cristian ( Semtech ) and Daniel Jae
 #include <math.h>
 
 #include "radio.h"
-//#include "timer.h"
+#if defined(__ASR6501__)
 #include "timeServer.h"
+#else
+#include "timer.h"
+#endif
+
 #include "LoRaMac.h"
 
 #include "utilities.h"
@@ -189,6 +193,11 @@ PhyParam_t RegionAS923GetPhyParam( GetPhyParams_t* getPhy )
             {
                 phyParam.Value = AS923_DWELL_LIMIT_DATARATE;
             }
+            break;
+        }
+        case PHY_MAX_TX_DR:
+        {
+            phyParam.Value = AS923_TX_MAX_DATARATE;
             break;
         }
         case PHY_DEF_TX_DR:

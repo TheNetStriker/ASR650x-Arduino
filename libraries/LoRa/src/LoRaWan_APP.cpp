@@ -11,7 +11,7 @@ bool rgbIsEnabled = false;
 #include "RegionEU433.h"
 #elif defined( REGION_KR920 )
 #include "RegionKR920.h"
-#elif defined( REGION_AS923 )
+#elif defined( REGION_AS923) || defined( REGION_AS923_AS1) || defined( REGION_AS923_AS2)
 #include "RegionAS923.h"
 #endif
 
@@ -36,10 +36,18 @@ bool rgbIsEnabled = false;
   uint8_t isDispayOn=0;
 #endif
 
-/*!
- * Default datarate when adr disabled
- */
-#define LORAWAN_DEFAULT_DATARATE                    DR_5
+/*loraWan default Dr when adr disabled*/
+#ifdef REGION_US915
+int8_t defaultDrForNoAdr = 3;
+#else
+int8_t defaultDrForNoAdr = 5;
+#endif
+
+/*AT mode, auto into low power mode*/
+bool autoLPM = true;
+
+/*loraWan current Dr when adr disabled*/
+int8_t currentDrForNoAdr;
 
 /*!
  * User application data size
@@ -98,10 +106,11 @@ bool SendFrame( void )
 	if( LoRaMacQueryTxPossible( appDataSize, &txInfo ) != LORAMAC_STATUS_OK )
 	{
 		// Send empty frame in order to flush MAC commands
+		printf("payload length error ...\r\n");
 		mcpsReq.Type = MCPS_UNCONFIRMED;
 		mcpsReq.Req.Unconfirmed.fBuffer = NULL;
 		mcpsReq.Req.Unconfirmed.fBufferSize = 0;
-		mcpsReq.Req.Unconfirmed.Datarate = LORAWAN_DEFAULT_DATARATE;
+		mcpsReq.Req.Unconfirmed.Datarate = currentDrForNoAdr;
 	}
 	else
 	{
@@ -112,7 +121,7 @@ bool SendFrame( void )
 			mcpsReq.Req.Unconfirmed.fPort = appPort;
 			mcpsReq.Req.Unconfirmed.fBuffer = appData;
 			mcpsReq.Req.Unconfirmed.fBufferSize = appDataSize;
-			mcpsReq.Req.Unconfirmed.Datarate = LORAWAN_DEFAULT_DATARATE;
+			mcpsReq.Req.Unconfirmed.Datarate = currentDrForNoAdr;
 		}
 		else
 		{
@@ -122,7 +131,7 @@ bool SendFrame( void )
 			mcpsReq.Req.Confirmed.fBuffer = appData;
 			mcpsReq.Req.Confirmed.fBufferSize = appDataSize;
 			mcpsReq.Req.Confirmed.NbTrials = confirmedNbTrials;
-			mcpsReq.Req.Confirmed.Datarate = LORAWAN_DEFAULT_DATARATE;
+			mcpsReq.Req.Confirmed.Datarate = currentDrForNoAdr;
 		}
 	}
 	if( LoRaMacMcpsRequest( &mcpsReq ) == LORAMAC_STATUS_OK )
@@ -254,7 +263,13 @@ uint16_t getBatteryVoltage(void)
 	pinMode(VBAT_ADC_CTL,OUTPUT);
 	digitalWrite(VBAT_ADC_CTL,LOW);
 	uint16_t volt=analogRead(ADC)*2;
-	digitalWrite(VBAT_ADC_CTL,HIGH);
+
+	/*
+	 * Board, BoardPlus, Capsule, GPS and HalfAA variants
+	 * have external 10K VDD pullup resistor
+	 * connected to GPIO7 (USER_KEY / VBAT_ADC_CTL) pin
+	 */
+	pinMode(VBAT_ADC_CTL, INPUT);
 #else
 	uint16_t volt=analogRead(ADC)*2;
 #endif
@@ -271,6 +286,7 @@ void __attribute__((weak)) downLinkDataHandle(McpsIndication_t *mcpsIndication)
 		printf("%02X",mcpsIndication->Buffer[i]);
 	}
 	printf("\r\n");
+	delay(10);
 }
 
 /*!
@@ -288,34 +304,37 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
 #if defined(CubeCell_BoardPlus)||defined(CubeCell_GPS)
 	ifDisplayAck=1;
 #endif
-	printf( "receive data: rssi = %d, snr = %d, datarate = %d\r\n", mcpsIndication->Rssi, (int)mcpsIndication->Snr,(int)mcpsIndication->RxDatarate);
-
 #if (LoraWan_RGB==1)
 	turnOnRGB(COLOR_RECEIVED, 200);
 	turnOffRGB();
 #endif
-
+	printf( "received ");
 	switch( mcpsIndication->McpsIndication )
 	{
 		case MCPS_UNCONFIRMED:
 		{
+			printf( "unconfirmed ");
 			break;
 		}
 		case MCPS_CONFIRMED:
 		{
+			printf( "confirmed ");
 			break;
 		}
 		case MCPS_PROPRIETARY:
 		{
+			printf( "proprietary ");
 			break;
 		}
 		case MCPS_MULTICAST:
 		{
+			printf( "multicast ");
 			break;
 		}
 		default:
 			break;
 	}
+	printf( "downlink: rssi = %d, snr = %d, datarate = %d\r\n", mcpsIndication->Rssi, (int)mcpsIndication->Snr,(int)mcpsIndication->RxDatarate);
 
 	// Check Multicast
 	// Check Port
@@ -336,6 +355,13 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
 	{
 		downLinkDataHandle(mcpsIndication);
 	}
+	delay(10);
+}
+
+
+void __attribute__((weak)) dev_time_updated()
+{
+	printf("device time updated\r\n");
 }
 
 /*!
@@ -390,6 +416,14 @@ static void MlmeConfirm( MlmeConfirm_t *mlmeConfirm )
 			}
 			break;
 		}
+		case MLME_DEVICE_TIME:
+		{
+			if( mlmeConfirm->Status == LORAMAC_EVENT_INFO_STATUS_OK )
+			{
+				dev_time_updated();
+			}
+			break;
+		}
 		default:
 			break;
 	}
@@ -436,7 +470,7 @@ void lwan_dev_params_update( void )
 	LoRaMacChannelAdd( 5, ( ChannelParams_t )KR920_LC6 );
 	LoRaMacChannelAdd( 6, ( ChannelParams_t )KR920_LC7 );
 	LoRaMacChannelAdd( 7, ( ChannelParams_t )KR920_LC8 );
-#elif defined( REGION_AS923 )
+#elif defined( REGION_AS923 ) || defined( REGION_AS923_AS1 ) || defined( REGION_AS923_AS2 )
 	LoRaMacChannelAdd( 2, ( ChannelParams_t )AS923_LC3 );
 	LoRaMacChannelAdd( 3, ( ChannelParams_t )AS923_LC4 );
 	LoRaMacChannelAdd( 4, ( ChannelParams_t )AS923_LC5 );
@@ -473,13 +507,30 @@ uint8_t BoardGetBatteryLevel()
 LoRaMacPrimitives_t LoRaMacPrimitive;
 LoRaMacCallback_t LoRaMacCallback;
 
+void LoRaWanClass::generateDeveuiByChipID()
+{
+	uint32 uniqueId[2];
+	CyGetUniqueId(uniqueId);
+	for(int i=0;i<8;i++)
+	{
+		if(i<4)
+			devEui[i] = (uniqueId[1]>>(8*(3-i)))&0xFF;
+		else
+			devEui[i] = (uniqueId[0]>>(8*(7-i)))&0xFF;
+	}
+}
+
+
 void LoRaWanClass::init(DeviceClass_t lorawanClass,LoRaMacRegion_t region)
 {
 	Serial.print("\r\nLoRaWAN ");
 	switch(region)
 	{
-		case LORAMAC_REGION_AS923:
-			Serial.print("AS923");
+		case LORAMAC_REGION_AS923_AS1:
+			Serial.print("AS923(AS1:922.0-923.4MHz)");
+			break;
+		case LORAMAC_REGION_AS923_AS2:
+			Serial.print("AS923(AS2:923.2-924.6MHz)");
 			break;
 		case LORAMAC_REGION_AU915:
 			Serial.print("AU915");
@@ -508,9 +559,13 @@ void LoRaWanClass::init(DeviceClass_t lorawanClass,LoRaMacRegion_t region)
 		case LORAMAC_REGION_US915_HYBRID:
 			Serial.print("US915_HYBRID ");
 			break;
+		default:
+			break;
 	}
 	Serial.printf(" Class %X start!\r\n\r\n",loraWanClass+10);
 
+	if(region == LORAMAC_REGION_AS923_AS1 || region == LORAMAC_REGION_AS923_AS2)
+		region = LORAMAC_REGION_AS923;
 	MibRequestConfirm_t mibReq;
 
 	LoRaMacPrimitive.MacMcpsConfirm = McpsConfirm;
@@ -532,6 +587,15 @@ void LoRaWanClass::init(DeviceClass_t lorawanClass,LoRaMacRegion_t region)
 	LoRaMacMibSetRequestConfirm( &mibReq );
 
 	lwan_dev_params_update();
+
+	mibReq.Type = MIB_DEVICE_CLASS;
+	LoRaMacMibGetRequestConfirm( &mibReq );
+	
+	if(loraWanClass != mibReq.Param.Class)
+	{
+		mibReq.Param.Class = loraWanClass;
+		LoRaMacMibSetRequestConfirm( &mibReq );
+	}
 
 	deviceState = DEVICE_STATE_JOIN;
 }
@@ -614,9 +678,18 @@ void LoRaWanClass::cycle(uint32_t dutyCycle)
 
 void LoRaWanClass::sleep()
 {
+#if defined(__ASR6601__)
+	TimerLowPowerHandler( );
+#else
 	lowPowerHandler( );
+#endif
+
 	// Process Radio IRQ
 	Radio.IrqProcess( );
+}
+void LoRaWanClass::setDataRateForNoADR(int8_t dataRate)
+{
+	defaultDrForNoAdr = dataRate;
 }
 
 void LoRaWanClass::ifskipjoin()
@@ -628,21 +701,21 @@ void LoRaWanClass::ifskipjoin()
 		{
 			Serial.println("Wait 3s for user key to rejoin network");
 			uint16_t i=0;
-			pinMode(GPIO7,INPUT);
+			pinMode(USER_KEY,INPUT);
 			while(i<=3000)
 			{
-				if(digitalRead(GPIO7)==LOW)//if user key down, rejoin network;
+				if(digitalRead(USER_KEY)==LOW)//if user key down, rejoin network;
 				{
 					netInfoDisable();
-					pinMode(GPIO7,OUTPUT);
-					digitalWrite(GPIO7,HIGH);
+					pinMode(USER_KEY,OUTPUT);
+					digitalWrite(USER_KEY,HIGH);
 					return;
 				}
 				delay(1);
 				i++;
 			}
-			pinMode(GPIO7,OUTPUT);
-			digitalWrite(GPIO7,HIGH);
+			pinMode(USER_KEY,OUTPUT);
+			digitalWrite(USER_KEY,HIGH);
 		}
 #if(AT_SUPPORT)
 		getDevParam();

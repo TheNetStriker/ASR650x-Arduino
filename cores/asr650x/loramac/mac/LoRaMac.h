@@ -54,12 +54,21 @@
 #include <stdbool.h>
 #include "timer.h"
 #include "radio.h"
+#if defined(__ASR6501__)
 #include "timeServer.h"
+#else
+#include "timer.h"
+#endif
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*!
+ * LoRaMac internal state
+ */
+extern uint32_t LoRaMacState;
 
 /*!
  * Check the Mac layer state every MAC_STATE_CHECK_TIMEOUT in ms
@@ -2137,6 +2146,14 @@ typedef enum eLoRaMacRegion_t {
      * Australian band on 915MHz Subband 2
      */
     LORAMAC_REGION_AU915_SB2,
+    /*!
+     * AS band on 922.0-923.4MHz
+     */
+    LORAMAC_REGION_AS923_AS1,
+    /*!
+     * AS band on 923.2-924.6MHz
+     */
+    LORAMAC_REGION_AS923_AS2
 } LoRaMacRegion_t;
 
 /*!
@@ -2413,6 +2430,21 @@ LoRaMacStatus_t LoRaMacMibSetRequestConfirm( MibRequestConfirm_t *mibSet );
  *          \ref LORAMAC_STATUS_DEVICE_OFF.
  */
 LoRaMacStatus_t LoRaMacMlmeRequest( MlmeReq_t *mlmeRequest );
+
+/*!
+ * LoRaMac internal states
+ */
+enum eLoRaMacState {
+    LORAMAC_IDLE          = 0x00000000,
+    LORAMAC_TX_RUNNING    = 0x00000001,
+    LORAMAC_RX            = 0x00000002,
+    LORAMAC_ACK_REQ       = 0x00000004,
+    LORAMAC_ACK_RETRY     = 0x00000008,
+    LORAMAC_TX_DELAYED    = 0x00000010,
+    LORAMAC_TX_CONFIG     = 0x00000020,
+    LORAMAC_RX_ABORT      = 0x00000040,
+};
+
 
 /*!
  * \brief   LoRaMAC MCPS-Request
