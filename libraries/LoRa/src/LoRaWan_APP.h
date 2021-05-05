@@ -10,6 +10,7 @@
 #include "HardwareSerial.h"
 #include "Arduino.h"
 #include "AT_Command.h"
+#include <cubecell_OLEDDisplay.h>
 #if defined(__asr650x__)
 #include "board.h"
 #include "gpio.h"
@@ -71,6 +72,12 @@ public:
   void displaySending();
   void displayAck();
   void displayMcuInit();
+  void displayText(const uint8_t *font, String line1, String line2, String line3, String line4, String line5);
+  void setDisplayAngle(OLEDDISPLAY_ANGLE angle);
+  void enableRgb();
+  void disableRgb();
+  void enableDisplay();
+  void disableDisplay();
 #endif
 };
 
